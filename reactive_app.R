@@ -24,6 +24,8 @@ library(plotly)
 library(assertthat)
 library(ggraph)
 library(gridExtra)
+#library(data.tree)
+
 
 
 #login function
@@ -580,7 +582,7 @@ new_links<-network_update()$links2 %>%
 #create graph object
 graph2<-tidygraph::tbl_graph(nodes = new_nodes,
                              edges = new_links,
-                             directed =TRUE)
+                             directed =FALSE)
 return(graph2)
 
 }})
@@ -627,6 +629,7 @@ output$lineargraph<-renderPlot({
         geom_edge_arc(color="grey", alpha = 0.4) + 
         geom_node_text(aes(label = tei_from_latest_onset, 
                            color = tei_from_latest_type),
+                           size = 2.5*input$radius,
                            hjust = 1,
                             nudge_y = 0.1,
                            check_overlap = TRUE) +
@@ -635,20 +638,17 @@ output$lineargraph<-renderPlot({
         coord_flip()
 })
 
-#Isolate individual cases
-output$root_iso<-renderPlot({
-    
-
-    library(ggraph)
-    library(igraph)
-    
-    p<-graph2()
-    #hierarchy <- dendrogram(graph2())
-    
-    ggraph(p, layout = "dendrogram", circular = FALSE) + 
-        geom_edge_diagonal() +
-        geom_node_point() 
-})
+#Isolate individual cases -- TEST/TODO
+# output$root_iso<-renderPlot({
+#     
+#     
+#     p<-graph2()
+#     #hierarchy <- dendrogram(graph2())
+#     
+#     ggraph(p, layout = "dendrogram", circular = FALSE) + 
+#         geom_edge_diagonal() +
+#         geom_node_point() 
+# })
 
 
 #  #now use that to return a different value
@@ -684,5 +684,6 @@ output$root_iso<-renderPlot({
 
 # Run the application 
 shinyApp(ui = ui, server = server)
+
 
 #next steps: add tree structure for node selection
