@@ -1,4 +1,4 @@
-####This vesion is UNLOCKED to only accept all data.
+####This vesion is LOCKED to only accept inputs from dhis2 covid demo instance https://covid.dhis2.org/demo/
 
 #
 # This is a Shiny web application. You can run the application by clicking
