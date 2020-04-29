@@ -1,4 +1,4 @@
-####This vesion is UNLOCKED to accept all instances.
+####This vesion is LOCKED to only accept instances covid19.demo.dhis2.org/demo
 
 #
 # This is a Shiny web application. You can run the application by clicking
