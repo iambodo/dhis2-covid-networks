@@ -1,4 +1,4 @@
-####This vesion is UNLOCKED to only accept all data.
+####This vesion is UNLOCKED to accept all instances.
 
 #
 # This is a Shiny web application. You can run the application by clicking
@@ -63,7 +63,7 @@ makeDT <-function(x){
 lengthcols <- function(x) length(colnames(x))
 
 #define layouts for network models
-igraph_layouts <- c('nicely', 'star', 'circle', 'gem', 'dh', 'graphopt', 'grid', 'mds', 
+igraph_layouts <- c('star', 'circle', 'gem', 'dh', 'graphopt', 'grid', 'mds', 
                     'randomly', 'fr', 'kk', 'drl', 'lgl')
 
 #theme set
@@ -102,7 +102,7 @@ ui <- navbarPage("Covid-19 DHIS2 Relationships", id = "tabID", fluid = TRUE,
             sidebarLayout(
                 sidebarPanel(
                     # Ask for base url 
-                    textInput(inputId = "baseurl", "DHIS2 URL", value = "https://covid.dhis2.org/demo/"),
+                    textInput(inputId = "baseurl", "DHIS2 URL", value = "https://covid19.dhis2.org/demo/"),
                     
                     # Ask for username
                     textInput(inputId = "username", "DHIS2 username, e.g. 'admin'", value = "COVID"),
@@ -188,7 +188,7 @@ ui <- navbarPage("Covid-19 DHIS2 Relationships", id = "tabID", fluid = TRUE,
                                        value = TRUE, width = NULL)),
                                     column(4, 
                                            selectInput(inputId = "layout_choice", "Choose Layout",
-                                                       choice=igraph_layouts, selected ="nicely")),
+                                                       choice=igraph_layouts, selected ="kk")),
                                     column(4, 
                                     downloadButton("download_network_png", ".png")),
                                         ),
@@ -239,20 +239,25 @@ ui <- navbarPage("Covid-19 DHIS2 Relationships", id = "tabID", fluid = TRUE,
                          tabsetPanel(
                              tabPanel("Network Analysis",
                               fluidRow(
-                                  column(4, plotOutput("x2")),
-                                  column(8,
+                                  column(4, 
+                                         plotOutput("x2"),
+                                         textOutput("sumtbl_txt")),
+                                    column(8,
                                          tags$strong(
-                                             "Filter the table below to change the graphics."),
+                                             "Filter the table below to change the graphic at left."),
+                                         tags$p("Click rows to highlight the case."),
                                          tags$br(),
                                          DT::DTOutput("tbl"))),
-                              fluidRow(
-                                  tags$div("Alternate: Select dot for Case ID"),
-                                  column(4, plotlyOutput("x3")),
-                                  column(8, plotOutput("hists")))
+                              # fluidRow(
+                              #     tags$div("Alternate: Select dot for Case ID"),
+                              #     column(4, plotlyOutput("x3")),
+                              #     column(8, plotOutput("hists")))
                      ),
                             tabPanel("All Nodes",
                               fluidRow( 
-                                  column(12, DT::DTOutput("nodesDT")),
+                                  column(12, 
+                                         DT::DTOutput("nodesDT"),
+                                         tags$br()),
                                   column(6, 
                                          plotOutput("nodes_chart_top")),
                                   column(6, 
@@ -265,9 +270,10 @@ ui <- navbarPage("Covid-19 DHIS2 Relationships", id = "tabID", fluid = TRUE,
                                          tableOutput("linkstab"),
                                          tags$br(),
                                          sankeyNetworkOutput("sankeyLinks", width="100%", height="100%")),
-                                  column(4, tableOutput("linksDays"),
+                                  column(4,
                                          tags$div("Distance between onset dates
                                                                       by 'from' node"),
+                                         tableOutput("linksDays"),
                                          plotOutput("lollipop"))
                               ) 
                               
@@ -435,10 +441,15 @@ payload <- eventReactive(input$login, {
             unlist() %>% 
             data.frame()
         
+        tei_rel_type<-lolists %>%
+            map(pluck, "relationshipName") %>%
+            unlist() %>% 
+            data.frame()
+        
         #remove duplicates since links are bidrectional
         #set names
-        network_base<- dplyr::bind_cols(tei_from, tei_to, tei_rel) %>% distinct()
-        colnames(network_base)<- c("tei_from","tei_to", "tei_rel")
+        network_base<- dplyr::bind_cols(tei_from, tei_to, tei_rel, tei_rel_type) %>% distinct()
+        colnames(network_base)<- c("tei_from","tei_to", "tei_rel", "tei_rel_type")
         
         if(length(network_base$tei_rel) > 1000){
             showNotification("1000+ relationships found! Wait for processing...", 
@@ -564,7 +575,7 @@ payload <- eventReactive(input$login, {
         #because links are bidrectional, but can be started index program or contacts program...
         #we need to combine both directions for node statistics
         network_tofrom <- network_base %>% 
-            select("tei_from"=tei_to, "tei_to"=tei_from, tei_rel) %>% 
+            select("tei_from"=tei_to, "tei_to"=tei_from, tei_rel, tei_rel_type) %>% 
             mutate(original_direction = "to_from") %>% 
             mutate_if(is.factor, as.character)
         
@@ -1013,7 +1024,8 @@ static_graph<-reactive({
 #plot the graph
 p<-graph2() %>%
     ggraph(layout = input$layout_choice) +
-    geom_edge_link(color = "black", alpha = 0.4)
+    geom_edge_link(color = "black", alpha = 0.4) +
+    labs(color = "Node Type")
 
 #set parameters for node points and/or node labels    
 if (input$nodelabels == TRUE){
@@ -1179,8 +1191,12 @@ root_iso_chart<-reactive({
     if (input$tracer_mode == "tree"){
         p<-ggraph(graph3(), layout='tree', root = 1) +
             geom_edge_link(color = "black", alpha = 0.3) +
-            theme(legend.position = "bottom") +
-            labs(title=paste0("Contacts for ",input$trace_lookup))
+            theme(legend.position = "bottom", 
+                  legend.box.background = element_rect(fill = "lightgray")) +
+            guides(color = guide_legend(override.aes = list(size=5))) +
+            labs(title=paste0("Contacts for ",input$trace_lookup),
+                 color = "Node Type")
+
     }
 
     
@@ -1269,10 +1285,27 @@ dt_help <- graph3() %>%
 ###Summary####
 output$tbl <- renderDT(makeDT(payload()$summary_tbl))
 
+output$sumtbl_txt<-renderText({
+  
+  filtered = input$tbl_rows_all
+  
+  p <- payload()$summary_tbl %>%  slice(filtered)
+  
+  total<- length(p$connections)
+  pos <- p %>% filter(`confirmed positive`==1) %>% count()
+  mean_connections <- round(mean(p$connections), 2)
+  
+  return(paste0("Showing ", total, " total TEI (", pos ," positive), with ", 
+                mean_connections, " connections on average"))
+})
+
 #ggplot2 bubble plot    
 output$x2 <- renderPlot({
     set.seed(1);
+  
     s = input$tbl_rows_all
+    h = input$tbl_rows_selected
+    
     p = payload()$summary_tbl %>%  slice(s) %>% 
         ggplot(aes(x=`contacts`, 
                    y=`indexed`, 
@@ -1281,12 +1314,21 @@ output$x2 <- renderPlot({
         geom_jitter(width = 0.1, height = 0.1) +
         scale_size(name="Total connections") +
         labs(title = element_text("Plot of nodes in network by relationships"),
-             subtitle = element_text("In Case-Based Surveillance and Contacts programs")) +
+             subtitle = element_text("In Case-Based Surveillance and Contacts programs"),
+             caption = element_text("positions are approximate to show density.")) +
         theme_minimal() +
         theme(legend.position = "bottom",
               legend.text = element_text(size = 10),
               legend.direction = "horizontal", legend.box = "vertical") +
-        scale_color_brewer(palette="Dark2") 
+        scale_color_brewer(palette="Dark2")
+
+
+  #select a row and show X over diagram
+    if (length(h)>0){
+      h2<- payload()$summary_tbl %>% slice(h)
+      
+      p <- p + geom_point(data = h2, size = 9, shape = 0, na.rm=TRUE)
+    } 
     
     plot(p)
 })
@@ -1294,6 +1336,8 @@ output$x2 <- renderPlot({
 ####All Nodes####
 
 output$nodesDT <- renderDT(makeDT(payload()$summary_tbl))
+
+
 
 #charts under nodes table
 output$nodes_chart_top <- renderPlot({
@@ -1334,7 +1378,9 @@ links_days_between_table<-payload()$lollipop_tbl %>%
     summarize("mean_days_between_onsets"=mean(days_between))
 
 lollipop<-payload()$lollipop_tbl %>% 
-    distinct(tei_rel, .keep_all=TRUE) %>% 
+    distinct(tei_rel, .keep_all=TRUE) %>%
+    arrange(-desc(tei_from_latest_onset)) %>% 
+    tail(50) %>%          #keep only the latest 50 links so we dont mess up the plot
     ggplot() +
     geom_segment( aes(x=tei_rel, xend=tei_rel, y=tei_from_latest_onset, yend=tei_to_latest_onset), color="grey") +
     geom_point( aes(x=tei_rel, y=tei_from_latest_onset), color="red", size=3 ) +
@@ -1345,7 +1391,7 @@ lollipop<-payload()$lollipop_tbl %>%
           legend.position = "bottom") +
     xlab("Relationship") +
     ylab("Date of Symptom onset")+
-    labs(title="Days Between Symptom Onsets",
+    labs(title="Days Between Symptom Onsets, in latest 50 cases",
          subtitle="Green = 'From' Node / Red = 'To' Node")
 
 #sankey
@@ -1405,13 +1451,6 @@ output$url_3<-renderUI({a(href = paste0(payload()$url_3),"Contacts Events")})
 
 # Run the application 
 shinyApp(ui = ui, server = server)
-
-
-#filter slider to org unit
-
-#if 500+ initially downloaded...
-#show message
-#just take the latest 500 by enrollment date
 
 
 
